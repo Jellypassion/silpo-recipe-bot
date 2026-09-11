@@ -12,7 +12,9 @@ export const config = {
   silpoMcpUrl: process.env.SILPO_MCP_URL ?? "https://mcp.silpo.ua/mcp",
   publicBaseUrl: required("PUBLIC_BASE_URL").replace(/\/+$/, ""),
   port: Number(process.env.PORT ?? 3000),
-  claudeModel: process.env.CLAUDE_MODEL ?? "claude-opus-5",
+  // claudeModel: process.env.CLAUDE_MODEL ?? "claude-opus-5",
+  claudeRecipeModel: process.env.CLAUDE_RECIPE_MODEL ?? "claude-haiku-4.5",
+  claudeCartModel: process.env.CLAUDE_CART_MODEL ?? "claude-sonnet-5",
   dataDir: process.env.DATA_DIR ?? "./data",
 };
 

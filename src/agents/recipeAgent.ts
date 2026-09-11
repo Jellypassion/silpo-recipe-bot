@@ -11,7 +11,7 @@ const client = new Anthropic({ apiKey: config.anthropicApiKey });
  */
 export async function generateRecipe(dishName: string): Promise<Recipe> {
   const response = await client.messages.parse({
-    model: config.claudeModel,
+    model: config.claudeRecipeModel,
     max_tokens: 4096,
     system:
       "Ти кулінарний асистент. Отримавши назву страви, склади практичний покроковий рецепт " +

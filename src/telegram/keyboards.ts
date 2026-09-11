@@ -18,5 +18,5 @@ export function authRequiredKeyboard(authUrl: string): InlineKeyboard {
 }
 
 export function checkoutKeyboard(webLink?: string): InlineKeyboard | undefined {
-  return webLink ? new InlineKeyboard().url("💳 Оплатити в Сільпо", webLink) : undefined;
+  return webLink ? new InlineKeyboard().url("🛒 Оформи замовлення в Сільпо", webLink) : undefined;
 }

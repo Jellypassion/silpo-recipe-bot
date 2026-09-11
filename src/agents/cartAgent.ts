@@ -96,7 +96,7 @@ export async function addIngredientsToCart(
     : "";
 
   const stream = client.beta.messages.stream({
-    model: config.claudeModel,
+    model: config.claudeCartModel,
     max_tokens: 16000,
     betas: ["mcp-client-2025-11-20"],
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
