@@ -10,21 +10,24 @@ import type { OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.
 export interface UserOAuthRecord {
   clientInformation?: OAuthClientInformationMixed;
   tokens?: OAuthTokens;
+  /** Unix ms when `tokens` were issued; lets us skip needless refreshes. */
+  tokensObtainedAt?: number;
   codeVerifier?: string;
   discoveryState?: OAuthDiscoveryState;
 }
+
+export type InvalidateScope = "all" | "client" | "tokens" | "verifier" | "discovery";
 
 type StoreShape = Record<string, UserOAuthRecord>;
 
 const storePath = path.join(config.dataDir, "oauth-store.json");
 let cache: StoreShape | undefined;
-let writeQueue: Promise<unknown> = Promise.resolve();
+let writeQueue: Promise<void> = Promise.resolve();
 
 async function load(): Promise<StoreShape> {
   if (cache) return cache;
   try {
-    const raw = await fs.readFile(storePath, "utf8");
-    cache = JSON.parse(raw) as StoreShape;
+    cache = JSON.parse(await fs.readFile(storePath, "utf8")) as StoreShape;
   } catch {
     cache = {};
   }
@@ -33,17 +36,21 @@ async function load(): Promise<StoreShape> {
 
 async function persist(): Promise<void> {
   await fs.mkdir(config.dataDir, { recursive: true });
-  await fs.writeFile(storePath, JSON.stringify(cache, null, 2), "utf8");
+  const tmp = `${storePath}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(cache, null, 2), "utf8");
+  await fs.rename(tmp, storePath);
 }
 
+/** Serialises writes; a failed write is logged but never poisons the queue. */
 function enqueueWrite(): Promise<void> {
-  writeQueue = writeQueue.then(persist);
-  return writeQueue as Promise<void>;
+  writeQueue = writeQueue
+    .then(persist)
+    .catch((err) => console.error("oauth-store write failed:", err));
+  return writeQueue;
 }
 
 export async function getUserRecord(userId: string): Promise<UserOAuthRecord> {
-  const store = await load();
-  return store[userId] ?? {};
+  return (await load())[userId] ?? {};
 }
 
 export async function updateUserRecord(
@@ -55,23 +62,27 @@ export async function updateUserRecord(
   await enqueueWrite();
 }
 
-export async function clearUserRecord(
-  userId: string,
-  scope: "all" | "client" | "tokens" | "verifier" | "discovery",
-): Promise<void> {
+export async function clearUserRecord(userId: string, scope: InvalidateScope): Promise<void> {
   const store = await load();
   const record = store[userId];
   if (!record) return;
-  if (scope === "all") {
-    delete store[userId];
-  } else if (scope === "client") {
-    delete record.clientInformation;
-  } else if (scope === "tokens") {
-    delete record.tokens;
-  } else if (scope === "verifier") {
-    delete record.codeVerifier;
-  } else if (scope === "discovery") {
-    delete record.discoveryState;
+  switch (scope) {
+    case "all":
+      delete store[userId];
+      break;
+    case "client":
+      delete record.clientInformation;
+      break;
+    case "tokens":
+      delete record.tokens;
+      delete record.tokensObtainedAt;
+      break;
+    case "verifier":
+      delete record.codeVerifier;
+      break;
+    case "discovery":
+      delete record.discoveryState;
+      break;
   }
   await enqueueWrite();
 }

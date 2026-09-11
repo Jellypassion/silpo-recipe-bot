@@ -16,5 +16,9 @@ export const config = {
   dataDir: process.env.DATA_DIR ?? "./data",
 };
 
+if (!config.publicBaseUrl.startsWith("https://")) {
+  throw new Error("PUBLIC_BASE_URL must be an https:// URL — Silpo's OAuth redirect_uri requires it");
+}
+
 export const oauthCallbackPath = "/oauth/callback";
 export const oauthRedirectUrl = `${config.publicBaseUrl}${oauthCallbackPath}`;

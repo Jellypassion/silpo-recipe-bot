@@ -3,20 +3,19 @@ import type { Recipe } from "../agents/types.js";
 export interface ChatSession {
   recipe: Recipe;
   selected: boolean[];
-  /** Message id of the recipe card, so we can edit its keyboard in place. */
-  recipeMessageId?: number;
+  /** Set when the agent asked for a delivery address; next text message is the address. */
+  awaitingAddress?: boolean;
+  deliveryAddress?: string;
+  /** Guards against a second "confirm" while a cart run is already in flight. */
+  cartRunInProgress?: boolean;
 }
 
 const sessions = new Map<number, ChatSession>();
 
-export function setSession(chatId: number, session: ChatSession): void {
+export const getSession = (chatId: number): ChatSession | undefined => sessions.get(chatId);
+export const setSession = (chatId: number, session: ChatSession): void => {
   sessions.set(chatId, session);
-}
-
-export function getSession(chatId: number): ChatSession | undefined {
-  return sessions.get(chatId);
-}
-
-export function clearSession(chatId: number): void {
+};
+export const clearSession = (chatId: number): void => {
   sessions.delete(chatId);
-}
+};

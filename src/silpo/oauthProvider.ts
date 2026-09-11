@@ -13,15 +13,18 @@ import {
   clearUserRecord,
   getUserRecord,
   updateUserRecord,
+  type InvalidateScope,
 } from "./oauthStore.js";
 import { registerPendingState } from "./pendingAuth.js";
 
 /**
- * One OAuthClientProvider per Telegram user. State (client registration, PKCE
- * verifier, tokens) is persisted server-side via oauthStore — never sent to
- * the Telegram client.
+ * One OAuthClientProvider per Telegram user, backed by the server-side store.
+ * Implements the flow the Silpo docs describe: 401 → `.well-known` discovery →
+ * Dynamic Client Registration (`POST /register`) → PKCE → `/authorize` in the
+ * browser → token → `refresh_token`. The SDK's `auth()` drives all of it.
  */
 export class SilpoOAuthProvider implements OAuthClientProvider {
+  /** Set by `redirectToAuthorization`; the bot sends this URL to the user. */
   public lastAuthorizationUrl: URL | undefined;
 
   constructor(private readonly userId: string) {}
@@ -59,7 +62,7 @@ export class SilpoOAuthProvider implements OAuthClientProvider {
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
-    await updateUserRecord(this.userId, { tokens });
+    await updateUserRecord(this.userId, { tokens, tokensObtainedAt: Date.now() });
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
@@ -84,9 +87,7 @@ export class SilpoOAuthProvider implements OAuthClientProvider {
     return (await getUserRecord(this.userId)).discoveryState;
   }
 
-  async invalidateCredentials(
-    scope: "all" | "client" | "tokens" | "verifier" | "discovery",
-  ): Promise<void> {
+  async invalidateCredentials(scope: InvalidateScope): Promise<void> {
     await clearUserRecord(this.userId, scope);
   }
 }

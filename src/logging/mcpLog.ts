@@ -1,27 +1,46 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.js";
 
 const logPath = path.join(config.dataDir, "mcp-calls.jsonl");
 
-/**
- * Persists every mcp_tool_use / mcp_tool_result block Claude produced while
- * talking to the Silpo MCP server — the hackathon rules ask for JSON-RPC
- * evidence that a real tool call happened.
- */
-export async function logMcpBlocks(context: string, blocks: unknown[]): Promise<void> {
-  const relevant = blocks.filter((b): b is { type: string } =>
-    typeof b === "object" && b !== null && "type" in b &&
-    ((b as { type: string }).type === "mcp_tool_use" ||
-      (b as { type: string }).type === "mcp_tool_result"),
-  );
-  if (relevant.length === 0) return;
+type McpBlock = Anthropic.Beta.BetaMCPToolUseBlock | Anthropic.Beta.BetaMCPToolResultBlock;
 
-  console.log(`[mcp:${context}]`, JSON.stringify(relevant, null, 2));
+function isMcpBlock(block: Anthropic.Beta.BetaContentBlock): block is McpBlock {
+  return block.type === "mcp_tool_use" || block.type === "mcp_tool_result";
+}
+
+/**
+ * Persists every MCP tool call/result Claude made against the Silpo server —
+ * the hackathon asks for JSON-RPC-level evidence that real tools were called.
+ */
+export async function logMcpBlocks(
+  context: string,
+  blocks: Anthropic.Beta.BetaContentBlock[],
+): Promise<void> {
+  const relevant = blocks.filter(isMcpBlock);
+  if (relevant.length === 0) {
+    console.warn(`[mcp:${context}] no MCP tool calls in this response`);
+    return;
+  }
+
+  for (const block of relevant) {
+    if (block.type === "mcp_tool_use") {
+      console.log(`[mcp:${context}] → ${block.name}`, JSON.stringify(block.input));
+    } else {
+      const preview = typeof block.content === "string"
+        ? block.content
+        : block.content.map((c) => c.text).join("");
+      console.log(
+        `[mcp:${context}] ← ${block.tool_use_id}${block.is_error ? " ERROR" : ""}`,
+        preview.slice(0, 300),
+      );
+    }
+  }
 
   await fs.mkdir(config.dataDir, { recursive: true });
-  const lines = relevant
-    .map((b) => JSON.stringify({ at: new Date().toISOString(), context, block: b }))
-    .join("\n") + "\n";
-  await fs.appendFile(logPath, lines, "utf8");
+  const at = new Date().toISOString();
+  const lines = relevant.map((block) => JSON.stringify({ at, context, block })).join("\n");
+  await fs.appendFile(logPath, lines + "\n", "utf8");
 }
